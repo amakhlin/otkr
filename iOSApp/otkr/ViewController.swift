@@ -27,7 +27,7 @@ class ViewController: UIViewController {
     
     @IBOutlet weak var label: UILabel!
     @IBOutlet weak var debugTextView: UITextView!
-    
+    @IBOutlet weak var labelVersion: UILabel!
     @IBOutlet weak var disconnectedLockImage: UIImageView!
     
     @IBOutlet weak var connectedLockImage: UIImageView!
@@ -68,19 +68,20 @@ class ViewController: UIViewController {
         debugTextView.scrollRangeToVisible(lastLine)
     }
     
-    /*@IBAction func DisconnectButtonClicked(_ sender: Any) {
-        //stopCmd = true
-        disconnectFromLock()
-    }*/
     
     @IBAction func UnlockButtonClicked(_ sender: Any) {
-        if(bluefruitPeripheral.state != CBPeripheralState.connected){
-            centralManager?.stopScan()
-            connectToLock("ImmediateConnect", geofenceOverride: true)
+        if let bluefruitPeripheral = bluefruitPeripheral{
+            if(bluefruitPeripheral.state != CBPeripheralState.connected){
+                centralManager?.stopScan()
+                connectToLock("ImmediateConnect", geofenceOverride: true)
+            }
+            else{
+                debug("already connected")
+                sendUlockCmd()
+            }
         }
         else{
-            debug("already connected")
-            sendUlockCmd()
+            debug("No lock nearby")
         }
     }
     
@@ -102,18 +103,11 @@ class ViewController: UIViewController {
         else{
             debug("2. Not Connecting because unlocking is not allowed")
         }
-        
-        //unlockComplete = false
-        
-        // Retry in checkDelay seconds if unlocking process does not complete for some reason
-        //DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(checkDelay), execute: {
-        //    self.autoRecover("*** \(fromMsg) auto-recovery ***")
-        //})
     }
     
     func disconnectFromLock(){
-        if bluefruitPeripheral != nil {
-            centralManager?.cancelPeripheralConnection(bluefruitPeripheral!)
+        if let bluefruitPeripheral = bluefruitPeripheral{
+            centralManager?.cancelPeripheralConnection(bluefruitPeripheral)
             debug("Disconnected from Lock\n")
         }
     }
@@ -134,6 +128,10 @@ class ViewController: UIViewController {
         monitorRegionAtLocation(center: geofenceRegionCenter, identifier: "4030ClarendonUnlockRegion")
         disconnectedLockImage.isHidden = false
         connectedLockImage.isHidden = true
+        
+        if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+            self.labelVersion.text = "Ver. \(version)"
+        }
     }
                                                                   
 
@@ -207,33 +205,6 @@ extension ViewController: CBCentralManagerDelegate {
             bluefruitPeripheral = peripherals[0]
             bluefruitPeripheral.delegate = self
         }
-            //if(bluefruitPeripheral.state != CBPeripheralState.connected){
-            //    centralManager?.stopScan()
-            //    connectToLock("willRestoreState")
-            //}
-            //else{
-            //    debug("already connected")
-            //    sendUlockCmd()
-            //}
-            //disconnectFromLock()
-            //startScanning()
-
-            /*
-            centralManager?.connect(bluefruitPeripheral!, options: [CBConnectPeripheralOptionStartDelayKey:10])//options: nil)
-            debug("2. Connecting (willRestoreState)")
-            
-            unlockComplete = false
-            
-            // Retry in 2 seconds if unlocking process does not complete for some reason
-            DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(12), execute: {
-                self.autoRecover("*** willRestoreState auto-recovery ***")
-            })
-            
-        }
-        else{
-            disconnectFromLock()
-            startScanning()
-        }*/
     }
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,advertisementData: [String : Any], rssi RSSI: NSNumber) {
@@ -243,17 +214,8 @@ extension ViewController: CBCentralManagerDelegate {
         
         centralManager?.stopScan()
         
+        // This is step 2
         connectToLock("didDiscover", geofenceOverride: false)
-        /*
-        centralManager?.connect(bluefruitPeripheral!, options: [CBConnectPeripheralOptionStartDelayKey:10])//options: nil)
-        debug("2. Connecting (didDiscover)")
-        
-        unlockComplete = false
-        
-        // Retry in 2 seconds if unlocking process does not complete for some reason
-        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(12), execute: {
-            self.autoRecover("*** didDiscover auto-recovery ***")
-        })*/
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
@@ -326,14 +288,6 @@ extension ViewController: CBPeripheralDelegate {
                 
                 // kick off the unlock process
                 sendUlockCmd()
-                
-                /*unlockComplete = false
-                
-                // Retry in 2 seconds if unlocking process does not complete for some reason
-                DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(12), execute: {
-                    self.autoRecover("*** didDiscover auto-recovery ***")
-                })*/
-
             }
         }
     }
@@ -349,10 +303,6 @@ extension ViewController: CBPeripheralDelegate {
             debug("7. Confirmed Unlocking, Success!", addTimestamp: true)
             unlockComplete = true
             unlockingAllowed = false
-            //disconnectFromLock()
-            //if(!stopCmd){
-            //    startScanning()
-            //}
         }
     }
 }
