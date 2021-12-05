@@ -6,4 +6,4 @@
 * [Mini relay feather wing](https://www.adafruit.com/product/2895)
 * Electronics [Eagle](https://github.com/adafruit/Adafruit-Relay-FeatherWing-PCBs)
 # Wiring diagram
-![wiring diagram]("otkr hw wiring diagram.png")
+![wiring diagram](./otkr_hw_wiring_diagram.png)
