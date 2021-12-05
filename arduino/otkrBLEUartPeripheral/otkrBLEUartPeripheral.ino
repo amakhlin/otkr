@@ -25,20 +25,16 @@ uint8_t readPacket (BLEUart *ble_uart, uint16_t timeout);
 float   parsefloat (uint8_t *buffer);
 void    printHex   (const uint8_t * data, const uint32_t numBytes);
 
-//SoftwareTimer postAutounlockTimer;
-//bool inPostAutounlockTimeout = false;
-
 // Packet buffer
 extern uint8_t packetbuffer[];
 
 void setup(void)
 {
-  
+  // pin 17 is red LED
   pinMode(17, OUTPUT);
+  // pin 16 is relay control pin: high is energized ie buzz open the door
   pinMode(16, OUTPUT);
   digitalWrite(16, LOW);
-
-  //postAutounlockTimer.begin(10000, post_unlock_timer_callback, NULL, false); // non-repeating
   
   Serial.begin(115200);
   while ( !Serial ) delay(10);   // for nrf52840 with native usb
@@ -49,12 +45,9 @@ void setup(void)
   // - nRF52832: -40dBm, -20dBm, -16dBm, -12dBm, -8dBm, -4dBm, 0dBm, +3dBm and +4dBm.
   // -20dbm is 2-3 feet of line of site distance
   
-  Bluefruit.setTxPower(-4);    // Check bluefruit.h for supported values
+  Bluefruit.setTxPower(0);    // Check bluefruit.h for supported values
 
   Bluefruit.autoConnLed(false);
-
-  //Bluefruit.Periph.setConnectCallback(connect_callback);
-  //Bluefruit.Periph.setDisconnectCallback(disconnect_callback);
 
   // To be consistent OTA DFU should be added first if it exists
   bledfu.begin();
@@ -114,9 +107,6 @@ void loop(void)
     boolean unlockCmd = packetbuffer[3] - '0';
     Serial.print ("Button "); Serial.print(buttnum);
     if (unlockCmd == 1) { // auto unlock command
-      //if(!inPostAutounlockTimeout){
-        //postAutounlockTimer.start();
-        //inPostAutounlockTimeout = true;
         
         digitalWrite(17, HIGH);
         digitalWrite(16, HIGH);
@@ -131,71 +121,5 @@ void loop(void)
         digitalWrite(17, LOW);
         digitalWrite(16, LOW);
      }
-      /*else{
-        // respond
-        uint8_t buf[10];
-        buf[0] = 0x55;
-        bleuart.write( buf, 1 );
-      }*/
-    /*} else { // immediate unlock command
-        postAutounlockTimer.start();
-        inPostAutounlockTimeout = true;
-        
-        digitalWrite(17, HIGH);
-        digitalWrite(16, HIGH);
-
-        // respond
-        uint8_t buf[10];
-        buf[0] = 0x55;
-        bleuart.write( buf, 1 );
-  
-        delay(1000);
-
-        digitalWrite(17, LOW);
-        digitalWrite(16, LOW);
-    }*/
   }
-
 }
-
-
-
-/*
-// callback invoked when central connects
-void connect_callback(uint16_t conn_handle)
-{
-  // Get the reference to current connection
-  //BLEConnection* connection = Bluefruit.Connection(conn_handle);
-
-  //char central_name[32] = { 0 };
-  //connection->getPeerName(central_name, sizeof(central_name));
-
-  //Serial.print("Connected to ");
-  //Serial.println(central_name);
-  Bluefruit.Advertising.stop(); 
-  
-}
-*/
-/*
-void post_unlock_timer_callback(TimerHandle_t xTimerID){
-  inPostAutounlockTimeout = false;
-}
-*/
-/*void disconnect_callback(uint16_t conn_handle, uint8_t reason)
-{
-  //(void) conn_handle;
-  //(void) reason;
-
-  //if(unlockComplete){
-
-    // wait for a while before allowing another unlock
-  //  delay(10000);
-   // unlockComplete = false;
-    
-  //}
-
-  Bluefruit.Advertising.start(0); 
-
-  //Serial.println();
-  //Serial.print("Disconnected, reason = 0x"); Serial.println(reason, HEX);
-}*/
