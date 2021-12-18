@@ -39,13 +39,15 @@ void setup(void)
   Serial.begin(115200);
   while ( !Serial ) delay(10);   // for nrf52840 with native usb
 
+  Bluefruit.configCentralBandwidth(BANDWIDTH_MAX);
+
   Bluefruit.begin();
 
   //Supported tx_power values depending on mcu:
   // - nRF52832: -40dBm, -20dBm, -16dBm, -12dBm, -8dBm, -4dBm, 0dBm, +3dBm and +4dBm.
   // -20dbm is 2-3 feet of line of site distance
   
-  Bluefruit.setTxPower(3);    // Check bluefruit.h for supported values
+  Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
 
   Bluefruit.autoConnLed(false);
 
