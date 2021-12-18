@@ -58,7 +58,7 @@ class ViewController: UIViewController {
         }
     }
     
-    func debug(_ str: String, addTimestamp: Bool = false){
+    func debug(_ str: String, addTimestamp: Bool = true){
         print(str)
         
         let timestampStr = (addTimestamp) ? " @ \(formatter.string(from: Date()))" : ""
@@ -115,10 +115,12 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        debug("hello")
+        
         
         formatter = DateFormatter()
         formatter.dateFormat = "h:mm:ss a d-MMM-y"
+        
+        debug("viewDidLoad")
         
         centralManager = CBCentralManager(delegate: self, queue: nil, options: [CBCentralManagerOptionRestoreIdentifierKey: "bluelock"])
         locationManager = CLLocationManager()
@@ -201,6 +203,8 @@ extension ViewController: CBCentralManagerDelegate {
             print("Error")
         }
         
+        debug("willRestoreState")
+        
         if let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] {
             bluefruitPeripheral = peripherals[0]
             bluefruitPeripheral.delegate = self
@@ -220,7 +224,7 @@ extension ViewController: CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
         bluefruitPeripheral.discoverServices([uuidService])
-        debug("3. Discovered Service: \(uuidService)")
+        //debug("3. Discovered Service: \(uuidService)")
         
         disconnectedLockImage.isHidden = true
         connectedLockImage.isHidden = false
@@ -259,7 +263,7 @@ extension ViewController: CBPeripheralDelegate {
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
         }
-        debug("4. Discovered Services: \(services)")
+        //debug("4. Discovered Services: \(services)")
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
@@ -277,14 +281,14 @@ extension ViewController: CBPeripheralDelegate {
                 peripheral.setNotifyValue(true, for: rxCharacteristic!)
                 peripheral.readValue(for: characteristic)
                 
-                debug("5. Discovered RX Characteristic: \(rxCharacteristic.uuid)")
+                //debug("5. Discovered RX Characteristic: \(rxCharacteristic.uuid)")
             }
             
             if characteristic.uuid.isEqual(uuidCharacteristicTx){
                 
                 txCharacteristic = characteristic
                 
-                debug("5. Discovered TX Characteristic: \(txCharacteristic.uuid)")
+                //debug("5. Discovered TX Characteristic: \(txCharacteristic.uuid)")
                 
                 // kick off the unlock process
                 sendUlockCmd()
@@ -323,6 +327,7 @@ extension ViewController: CLLocationManagerDelegate{
     }
     
     func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
+        debug("didDtermineState, locationInitialized is \(locationInitialized)")
         if(!locationInitialized){
             switch state {
             case .unknown:
@@ -338,5 +343,17 @@ extension ViewController: CLLocationManagerDelegate{
             }
             locationInitialized = true
         }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        debug("Location Manager failed with the following error: \(error)")
+    }
+    
+    func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
+        guard let region = region else {
+          debug("Monitoring failed for unknown region")
+          return
+        }
+        debug("Monitoring failed for region with identifier: \(region.identifier)")
     }
 }
