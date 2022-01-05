@@ -9,6 +9,7 @@
 import UIKit
 import CoreBluetooth
 import CoreLocation
+//import os.log
 
 class ViewController: UIViewController {
     
@@ -39,6 +40,7 @@ class ViewController: UIViewController {
     var unlockingAllowed: Bool = false
     var locationInitialized: Bool = false
     var formatter = DateFormatter()
+    //let logger = Logger.init(subsystem: "com.tradecraft.otkr", category: "main")
     
     func monitorRegionAtLocation(center: CLLocationCoordinate2D, identifier: String ) {
         // Make sure the devices supports region monitoring.
@@ -60,6 +62,7 @@ class ViewController: UIViewController {
     
     func debug(_ str: String, addTimestamp: Bool = true){
         print(str)
+        //logger.log("\(str, privacy: .public)")
         
         let timestampStr = (addTimestamp) ? " @ \(formatter.string(from: Date()))" : ""
         
@@ -70,18 +73,30 @@ class ViewController: UIViewController {
     
     
     @IBAction func UnlockButtonClicked(_ sender: Any) {
-        if let bluefruitPeripheral = bluefruitPeripheral{
-            if(bluefruitPeripheral.state != CBPeripheralState.connected){
-                centralManager?.stopScan()
-                connectToLock("ImmediateConnect", geofenceOverride: true)
+        connectToLock("-> ImmediateConnect", geofenceOverride: true)
+    }
+    
+    func connectToLock(_ fromMsg: String, geofenceOverride: Bool){
+        if(geofenceOverride || unlockingAllowed){
+            // check to see if we've alrady discovered a peripheral previously
+            if let bluefruitPeripheral = bluefruitPeripheral{
+                if(bluefruitPeripheral.state != CBPeripheralState.connected){
+                    centralManager?.connect(bluefruitPeripheral, options: nil)
+                    debug("2. Connecting \(fromMsg)")
+                }
+                else{
+                    debug("Already connected \(fromMsg)")
+                    sendUlockCmd()
+                }
             }
             else{
-                debug("already connected")
-                sendUlockCmd()
+                startScanning()
+                debug("Kicking off the scan \(fromMsg)")
             }
+
         }
         else{
-            debug("No lock nearby")
+            debug("2. Not Connecting because unlocking is not allowed")
         }
     }
     
@@ -94,16 +109,6 @@ class ViewController: UIViewController {
         debug("6. Unlocking")
     }
     
-    func connectToLock(_ fromMsg: String, geofenceOverride: Bool){
-        if(geofenceOverride || unlockingAllowed){
-            centralManager?.connect(bluefruitPeripheral!, options: nil)
-        
-            debug("2. Connecting \(fromMsg)")
-        }
-        else{
-            debug("2. Not Connecting because unlocking is not allowed")
-        }
-    }
     
     func disconnectFromLock(){
         if let bluefruitPeripheral = bluefruitPeripheral{
@@ -313,17 +318,22 @@ extension ViewController: CBPeripheralDelegate {
 
 extension ViewController: CLLocationManagerDelegate{
     func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        unlockingAllowed = true
-        startScanning()
-        debug("didEnterRegion", addTimestamp: true)
+        debug("didEnterRegion")
+        locationInitialized = true
+        if(!unlockingAllowed){
+            unlockingAllowed = true
+            connectToLock("didEnterRegion", geofenceOverride: false);
+        }
 
     }
     
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        unlockingAllowed = true
-        startScanning()
-        debug("didExitRegion", addTimestamp: true)
-    
+        debug("didExitRegion")
+        locationInitialized = true
+        if(!unlockingAllowed){
+            unlockingAllowed = true
+            connectToLock("didExitRegion", geofenceOverride: false);
+        }
     }
     
     func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
@@ -338,8 +348,11 @@ extension ViewController: CLLocationManagerDelegate{
                 unlockingAllowed = false
             case .outside:
                 debug("didDetermineState outside")
-                unlockingAllowed = true
-                startScanning()
+                if(!unlockingAllowed){
+                    unlockingAllowed = true
+                    //startScanning()
+                    connectToLock("didDetermineState outside", geofenceOverride: false);
+                    }
             }
             locationInitialized = true
         }
