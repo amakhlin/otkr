@@ -47,7 +47,7 @@ void setup(void)
   // - nRF52832: -40dBm, -20dBm, -16dBm, -12dBm, -8dBm, -4dBm, 0dBm, +3dBm and +4dBm.
   // -20dbm is 2-3 feet of line of site distance
   
-  Bluefruit.setTxPower(4);    // Check bluefruit.h for supported values
+  Bluefruit.setTxPower(-4);    // Check bluefruit.h for supported values
 
   Bluefruit.autoConnLed(false);
 
