@@ -20,7 +20,7 @@ class ViewController: UIViewController {
     private var rxCharacteristic: CBCharacteristic!
     var tick: Bool = false
     var unlockComplete: Bool = false
-    //var stopCmd: Bool = false
+    var geofenceOverride = false;
 
     let uuidService = CBUUID(string: "6e400001-b5a3-f393-e0a9-e50e24dcca9e")
     let uuidCharacteristicTx = CBUUID(string: "6e400002-b5a3-f393-e0a9-e50e24dcca9e")
@@ -56,7 +56,7 @@ class ViewController: UIViewController {
             debug("location monitoring registred")
         }
         else{
-            debug("location monitoring NOT available")
+            debug("ERROR: location monitoring NOT available")
         }
     }
     
@@ -73,30 +73,34 @@ class ViewController: UIViewController {
     
     
     @IBAction func UnlockButtonClicked(_ sender: Any) {
-        connectToLock("-> ImmediateConnect", geofenceOverride: true)
+        debug("-> ImmediateConnect: sending disconnectFromLock")
+        disconnectFromLock()
+        
+        geofenceOverride = true;
+        connectToLock()
     }
     
-    func connectToLock(_ fromMsg: String, geofenceOverride: Bool){
+    func connectToLock(){
         if(geofenceOverride || unlockingAllowed){
             // check to see if we've alrady discovered a peripheral previously
             if let bluefruitPeripheral = bluefruitPeripheral{
                 if(bluefruitPeripheral.state != CBPeripheralState.connected){
+                    debug("2. Connecting")
                     centralManager?.connect(bluefruitPeripheral, options: nil)
-                    debug("2. Connecting \(fromMsg)")
                 }
                 else{
-                    debug("Already connected \(fromMsg)")
+                    debug("connectToLock already connected so calling sendUlockCmd")
                     sendUlockCmd()
                 }
             }
             else{
+                debug("ERROR: onnectToLock peripheral is null, starting a scan")
                 startScanning()
-                debug("Kicking off the scan \(fromMsg)")
             }
 
         }
         else{
-            debug("2. Not Connecting because unlocking is not allowed")
+            debug("2. Connecting is not allowed\n", addTimestamp: false)
         }
     }
     
@@ -104,23 +108,27 @@ class ViewController: UIViewController {
         let buffer: [UInt8] = [0x21, 0x42, 0x31, 0x31, 0x3A]
         let cmdStr = String(bytes: buffer, encoding: String.Encoding.ascii)
         
-        writeOutgoingValue(data: cmdStr!)
-        
         debug("6. Unlocking")
+
+        writeOutgoingValue(data: cmdStr!)
     }
     
     
     func disconnectFromLock(){
         if let bluefruitPeripheral = bluefruitPeripheral{
-            centralManager?.cancelPeripheralConnection(bluefruitPeripheral)
-            debug("Disconnected from Lock\n")
+            if(bluefruitPeripheral.state == CBPeripheralState.connected){
+                debug("Disconnecting from Lock\n")
+                centralManager?.cancelPeripheralConnection(bluefruitPeripheral)
+            }
+            else{
+                debug("disconnectFromLock: already disconnected")
+            }
         }
     }
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        
         
         formatter = DateFormatter()
         formatter.dateFormat = "h:mm:ss a d-MMM-y"
@@ -140,14 +148,10 @@ class ViewController: UIViewController {
             self.labelVersion.text = "Ver. \(version)"
         }
     }
-                                                                  
-
-    
 
     func startScanning() -> Void {
-        centralManager?.scanForPeripherals(withServices: [uuidService])//, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])
-        //centralManager?.scanForPeripherals(withServices: [] , options: [CBCentralManagerScanOptionAllowDuplicatesKey:false])
-        debug("\n1. Start Scanning")
+        debug("\n1. Starting Scan")
+        centralManager?.scanForPeripherals(withServices: [uuidService])//, options: [CBCentralManagerScanOptionAllowDuplicatesKey:true])        
     }
     
     func writeOutgoingValue(data: String){
@@ -158,6 +162,12 @@ class ViewController: UIViewController {
             if let txCharacteristic = txCharacteristic {
                 bluefruitPeripheral.writeValue(valueString!, for: txCharacteristic, type: CBCharacteristicWriteType.withResponse)
             }
+            else{
+                debug("ERROR: writeOutgoingValue txChar does not match")
+            }
+        }
+        else{
+            debug("ERROR: writeOutgoingValue pripheral does not match")
         }
     }
     
@@ -169,22 +179,21 @@ extension ViewController: CBCentralManagerDelegate {
         
         switch central.state {
         case .poweredOff:
-            print("Is Powered Off.")
+            debug("CBDidUpdateState: powered Off.")
         case .poweredOn:
-            //debug("Is Powered On.")
-            debug("centralManagerDidUpdateState")
+            debug("CBDidUpdateState: powered on")
             disconnectFromLock()
             startScanning()
         case .unsupported:
-            print("Is Unsupported.")
+            debug("CBDidUpdateState: unsupported.")
         case .unauthorized:
-            print("Is Unauthorized.")
+            debug("CBDidUpdateState: unauthorized.")
         case .unknown:
-            print("Unknown")
+            debug("CBDidUpdateState: unknown")
         case .resetting:
-            print("Resetting")
+            debug("CBDidUpdateState: resetting")
         @unknown default:
-            print("Error")
+            debug("CBDidUpdateState: error")
         }
     }
     
@@ -193,22 +202,20 @@ extension ViewController: CBCentralManagerDelegate {
         
         switch central.state {
         case .poweredOff:
-            print("Is Powered Off.")
+            debug("CBwillRestoreState: powered Off.")
         case .poweredOn:
-            print("Is Powered On.")
+            debug("CBwillRestoreState: oowered On.")
         case .unsupported:
-            print("Is Unsupported.")
+            debug("CBwillRestoreState: unsupported.")
         case .unauthorized:
-            print("Is Unauthorized.")
+            debug("CBwillRestoreState: unauthorized.")
         case .unknown:
-            print("Unknown")
+            debug("CBwillRestoreState: unknown")
         case .resetting:
-            print("Resetting")
+            debug("CBwillRestoreState: resetting")
         @unknown default:
-            print("Error")
+            debug("CBwillRestoreState: error")
         }
-        
-        debug("willRestoreState")
         
         if let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral] {
             bluefruitPeripheral = peripherals[0]
@@ -218,34 +225,32 @@ extension ViewController: CBCentralManagerDelegate {
     
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,advertisementData: [String : Any], rssi RSSI: NSNumber) {
         bluefruitPeripheral = peripheral
-        
-        bluefruitPeripheral.delegate = self
-        
+        bluefruitPeripheral.delegate = self    
         centralManager?.stopScan()
         
         // This is step 2
-        connectToLock("didDiscover", geofenceOverride: false)
+        connectToLock()
     }
     
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        debug("3. didConnect, discovering services")
         bluefruitPeripheral.discoverServices([uuidService])
-        //debug("3. Discovered Service: \(uuidService)")
         
         disconnectedLockImage.isHidden = true
         connectedLockImage.isHidden = false
     }
     
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        startScanning()
         debug("Disconnect Detected")
+        startScanning()
         
         disconnectedLockImage.isHidden = false
         connectedLockImage.isHidden = true
     }
     
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        debug("ERROR: Failed to Connect")
         startScanning()
-        debug("Failed to Connect")
         
         disconnectedLockImage.isHidden = false
         connectedLockImage.isHidden = true
@@ -256,45 +261,50 @@ extension ViewController: CBCentralManagerDelegate {
 extension ViewController: CBPeripheralDelegate {
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        
+        debug("4. Discovered Services")
+
         if ((error) != nil) {
-            debug("Error discovering services: \(error!.localizedDescription)")
+            debug("ERROR: didDiscoverServices \(error!.localizedDescription)")
+            disconnectFromLock()
+            startScanning()
             return
         }
         guard let services = peripheral.services else {
+            debug("ERROR: didDisconverServices peripheral.services is null")
+            disconnectFromLock()
+            startScanning()
             return
         }
 
         for service in services {
             peripheral.discoverCharacteristics(nil, for: service)
         }
-        //debug("4. Discovered Services: \(services)")
+        
     }
     
     func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
-        
+        debug("5. Discovered Characteristics")
         guard let characteristics = service.characteristics else {
+            debug("ERROR: didDiscoverCharacteristicsFor service.characteristics is null")
+            disconnectFromLock()
+            startScanning()
             return
         }
         
         for characteristic in characteristics {
             
             if characteristic.uuid.isEqual(uuidCharacteristicRx)  {
-                
                 rxCharacteristic = characteristic
                 
+                debug("5.1 set up callback for lock resp")
                 peripheral.setNotifyValue(true, for: rxCharacteristic!)
                 peripheral.readValue(for: characteristic)
-                
-                //debug("5. Discovered RX Characteristic: \(rxCharacteristic.uuid)")
             }
             
             if characteristic.uuid.isEqual(uuidCharacteristicTx){
-                
                 txCharacteristic = characteristic
-                
-                //debug("5. Discovered TX Characteristic: \(txCharacteristic.uuid)")
-                
+                debug("5.2 set tx char for writing to lock")
+            
                 // kick off the unlock process
                 sendUlockCmd()
             }
@@ -303,41 +313,58 @@ extension ViewController: CBPeripheralDelegate {
     
     func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard characteristic == rxCharacteristic,
-              
-                let characteristicValue = characteristic.value,
-              let ASCIIstring = NSString(data: characteristicValue, encoding: String.Encoding.utf8.rawValue) else { return }
+            let characteristicValue = characteristic.value,
+              let ASCIIstring = NSString(data: characteristicValue, encoding: String.Encoding.utf8.rawValue) else { 
+                debug("ERROR: didUpdateValueFor can't get the value from rxCharacteristic")
+                // this callback seems to fire twice, with the first call failing the guard conidtion above
+                // so we can't give up and restart the process
+                // instead webwait for the second callback which usually succeeds
+
+                //disconnectFromLock()
+                //startScanning()
+                return 
+              }
         
         if(ASCIIstring.isEqual(to: "U")){
-            
             debug("7. Confirmed Unlocking, Success!", addTimestamp: true)
             unlockComplete = true
             unlockingAllowed = false
+            geofenceOverride = false
+            disconnectFromLock()
+        }
+        else{
+            debug("ERROR: got wrong response from lock")
+            disconnectFromLock()
+            startScanning()
         }
     }
 }
 
 extension ViewController: CLLocationManagerDelegate{
     func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        debug("didEnterRegion")
+        //debug("didEnterRegion")
         locationInitialized = true
         if(!unlockingAllowed){
             unlockingAllowed = true
-            connectToLock("didEnterRegion", geofenceOverride: false);
+            debug("didEnterRegion: calling connectToLock")
+            connectToLock();
         }
 
     }
     
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        debug("didExitRegion")
+        //debug("didExitRegion")
         locationInitialized = true
         if(!unlockingAllowed){
             unlockingAllowed = true
-            connectToLock("didExitRegion", geofenceOverride: false);
+            debug("didExitRegion: calling connectToLock")
+            connectToLock();
         }
     }
     
+    // this one is called on state transitions, so contemporenously with either of the two above
     func locationManager(_ manager: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
-        debug("didDtermineState, locationInitialized is \(locationInitialized)")
+        //debug("didDtermineState, locationInitialized is \(locationInitialized)")
         if(!locationInitialized){
             switch state {
             case .unknown:
@@ -351,22 +378,23 @@ extension ViewController: CLLocationManagerDelegate{
                 if(!unlockingAllowed){
                     unlockingAllowed = true
                     //startScanning()
-                    connectToLock("didDetermineState outside", geofenceOverride: false);
-                    }
+                    debug("didDetermineState: calling connectToLock")
+                    connectToLock();
+                }
             }
             locationInitialized = true
         }
     }
     
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        debug("Location Manager failed with the following error: \(error)")
+        debug("ERROR: Location Manager failed with the following error: \(error)")
     }
     
     func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
         guard let region = region else {
-          debug("Monitoring failed for unknown region")
+          debug("ERROR: Monitoring failed for unknown region")
           return
         }
-        debug("Monitoring failed for region with identifier: \(region.identifier)")
+        debug("ERROR: Monitoring failed for region with identifier: \(region.identifier)")
     }
 }
